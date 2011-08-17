@@ -93,7 +93,7 @@ namespace PushDeployment
                 }
 
                 client.disconnect();
-                client.waitFor(1000, new List<BayeuxClient.State>() { BayeuxClient.State.DISCONNECTED });
+                client.waitFor(2000, new List<BayeuxClient.State>() { BayeuxClient.State.DISCONNECTED });
             }
             catch (Exception ex)
             {
