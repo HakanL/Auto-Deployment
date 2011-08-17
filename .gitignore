@@ -1,3 +1,5 @@
 
 /src/PushDeployment/obj
 /src/PushDeployment/bin
+/src/UpdateService/obj
+/src/UpdateService/bin
