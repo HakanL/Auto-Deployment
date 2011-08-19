@@ -10,6 +10,8 @@ using Cometd.Bayeux;
 using Cometd.Bayeux.Client;
 using Cometd.Common;
 
+using log4net;
+
 
 namespace UpdateService
 {
@@ -34,6 +36,10 @@ namespace UpdateService
 
     public class NotifyClient : IMessageListener
     {
+        // Create a logger for use in this class
+        private static readonly log4net.ILog log =
+            log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
+
         private BayeuxClient client;
         private IClientSessionChannel callEventChannel;
         private string channelId;
@@ -82,6 +88,29 @@ namespace UpdateService
             client.disconnect();
         }
 
+
+        public void Publish(string data)
+        {
+            if (callEventChannel == null)
+                // Not connected yet
+                return;
+
+            callEventChannel.publish(data);
+        }
+
+
+        public void PublishStatus(string status)
+        {
+            StringBuilder sb = new StringBuilder();
+
+            sb.Append("\"command\":\"status\",");
+            sb.AppendFormat("\"computer\":\"{0}\",", Environment.MachineName);
+            sb.AppendFormat("\"status\":\"{0}\"", status);
+
+            Publish('{' + sb.ToString() + '}');
+        }
+
+
         public void onMessage(IClientSessionChannel channel, IMessage message)
         {
             if (channel.ChannelId.ToString().Equals(Channel_Fields.META_HANDSHAKE))
@@ -93,6 +122,8 @@ namespace UpdateService
 
                     callEventChannel.unsubscribe(this);
                     callEventChannel.subscribe(this);
+
+                    PublishStatus("Starting up");
                 }
                 return;
             }
@@ -106,7 +137,15 @@ namespace UpdateService
                 foreach (var kvp in data)
                     nvc.Add(kvp.Key, kvp.Value.ToString());
 
-                RaiseUpdateAvailable(nvc);
+                if (nvc.GetValues("command") == null)
+                    // Missing command
+                    return;
+
+                string command = nvc.GetValues("command").First();
+                log.InfoFormat("Received command = {0}", command);
+                
+                if(command == "deploy")
+                    RaiseUpdateAvailable(nvc);
             }
         }
     }

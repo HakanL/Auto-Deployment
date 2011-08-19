@@ -44,15 +44,6 @@ namespace UpdateService.Properties {
         
         [global::System.Configuration.ApplicationScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("bin\\rake.bat")]
-        public string UpdaterExecutable {
-            get {
-                return ((string)(this["UpdaterExecutable"]));
-            }
-        }
-        
-        [global::System.Configuration.ApplicationScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("_Updater")]
         public string UpdaterFolder {
             get {
@@ -62,7 +53,25 @@ namespace UpdateService.Properties {
         
         [global::System.Configuration.ApplicationScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("-f download\\openbook2-dev.rb say_hi build={build}")]
+        [global::System.Configuration.DefaultSettingValueAttribute("download")]
+        public string DownloadFolder {
+            get {
+                return ((string)(this["DownloadFolder"]));
+            }
+        }
+        
+        [global::System.Configuration.ApplicationScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("bin\\ir.exe")]
+        public string UpdaterExecutable {
+            get {
+                return ((string)(this["UpdaterExecutable"]));
+            }
+        }
+        
+        [global::System.Configuration.ApplicationScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("bin\\rake -f download\\openbook2-dev.rb build={build} clean")]
         public string UpdaterParameters {
             get {
                 return ((string)(this["UpdaterParameters"]));
@@ -73,8 +82,8 @@ namespace UpdateService.Properties {
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute(@"<?xml version=""1.0"" encoding=""utf-16""?>
 <ArrayOfString xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"" xmlns:xsd=""http://www.w3.org/2001/XMLSchema"">
-  <string>https://ob2deploy:qwer1234@cf-na-east-01.opsourcecloud.net/dav/builds/Test-{build}.txt</string>
-  <string>https://ob2deploy:qwer1234@cf-na-east-01.opsourcecloud.net/dav/configs/openbook2-dev.rb</string>
+  <string>--https://ob2deploy:qwer1234@cf-na-east-01.opsourcecloud.net/dav/builds/Test-{build}.txt</string>
+  <string>--https://ob2deploy:qwer1234@cf-na-east-01.opsourcecloud.net/dav/configs/openbook2-dev.rb</string>
 </ArrayOfString>")]
         public global::System.Collections.Specialized.StringCollection Downloads {
             get {
@@ -84,10 +93,10 @@ namespace UpdateService.Properties {
         
         [global::System.Configuration.ApplicationScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("download")]
-        public string DownloadFolder {
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string Password {
             get {
-                return ((string)(this["DownloadFolder"]));
+                return ((string)(this["Password"]));
             }
         }
     }

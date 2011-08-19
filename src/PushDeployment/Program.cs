@@ -13,6 +13,32 @@ using Cometd.Common;
 
 namespace PushDeployment
 {
+    public class MsgListener : IMessageListener
+    {
+        private string GetString(IDictionary<string, object> data, string key)
+        {
+            if(data.ContainsKey(key))
+                return data[key].ToString();
+
+            return null;
+        }
+
+        public void onMessage(IClientSessionChannel channel, IMessage message)
+        {
+            var data = message.DataAsDictionary;
+
+            string command = GetString(data, "command");
+            if (command == "status")
+            {
+                string computer = GetString(data, "computer");
+                string status = GetString(data, "status");
+
+                Console.WriteLine(string.Format("{0} - {1}", computer, status));
+            }
+        }
+    }
+
+
     public class Program
     {
         private static NameValueCollection GetArguments(string[] args)
@@ -64,7 +90,7 @@ namespace PushDeployment
                 if (string.IsNullOrEmpty(channel))
                     throw new ArgumentNullException("Missing channel");
 
-                if (!arguments.GetValues(string.Empty).Any())
+                if (arguments.GetValues(string.Empty) == null ||!arguments.GetValues(string.Empty).Any())
                     throw new ArgumentException("Missing data (key=value)");
 
                 var transports = new List<ClientTransport>();
@@ -73,11 +99,14 @@ namespace PushDeployment
                 var client = new BayeuxClient(cometUrl, transports);
 
                 client.handshake(10000);
+                client.waitFor(10000, new List<BayeuxClient.State>() { BayeuxClient.State.CONNECTED });
                 if (!client.Connected)
                 {
                     throw new InvalidOperationException("Failed to connect to comet server");
-                    // Here handshake is successful
                 }
+
+                StringBuilder jsonData = new StringBuilder();
+                jsonData.Append("\"command\":\"deploy\"");
 
                 foreach (var arg in arguments.GetValues(string.Empty))
                 {
@@ -88,8 +117,31 @@ namespace PushDeployment
                         var value = string.Join("=", kvp, 1, kvp.Length - 1);
 
                         Console.WriteLine(string.Format("Sending notify for data: {0}={1}", key, value));
-                        client.getChannel(channel).publish(string.Format("{{\"{0}\":\"{1}\"}}", key, value));
+                        if (jsonData.Length > 0)
+                            jsonData.Append(',');
+                        jsonData.AppendFormat("\"{0}\":\"{1}\"", key, value);
                     }
+                }
+
+                var chn = client.getChannel(channel);
+                
+                bool listen = arguments.AllKeys.Contains("listen");
+
+                var msgListener = new MsgListener();
+                if (listen)
+                {
+                    chn.unsubscribe(msgListener);
+                    chn.subscribe(msgListener);
+                }
+
+                chn.publish('{' + jsonData.ToString() + '}');
+
+                if (listen)
+                {
+                    Console.WriteLine("Hit <enter> to exit");
+                    Console.ReadLine();
+
+                    chn.unsubscribe(msgListener);
                 }
 
                 client.disconnect();
