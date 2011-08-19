@@ -106,8 +106,6 @@ namespace PushDeployment
                 }
 
                 StringBuilder jsonData = new StringBuilder();
-                jsonData.Append("\"command\":\"deploy\"");
-
                 foreach (var arg in arguments.GetValues(string.Empty))
                 {
                     var kvp = arg.Split('=');
