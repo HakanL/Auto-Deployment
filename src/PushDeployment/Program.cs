@@ -88,7 +88,7 @@ namespace PushDeployment
                     channel = "/" + channel;
 
                 if (string.IsNullOrEmpty(channel))
-                    throw new ArgumentNullException("Missing channel");
+                    throw new ArgumentException("Missing channel");
 
                 if (arguments.GetValues(string.Empty) == null ||!arguments.GetValues(string.Empty).Any())
                     throw new ArgumentException("Missing data (key=value)");
@@ -105,6 +105,8 @@ namespace PushDeployment
                     throw new InvalidOperationException("Failed to connect to comet server");
                 }
 
+                bool listen = false;
+
                 StringBuilder jsonData = new StringBuilder();
                 foreach (var arg in arguments.GetValues(string.Empty))
                 {
@@ -119,12 +121,15 @@ namespace PushDeployment
                             jsonData.Append(',');
                         jsonData.AppendFormat("\"{0}\":\"{1}\"", key, value);
                     }
+                    else
+                    {
+                        if (arg.Equals("listen", StringComparison.OrdinalIgnoreCase))
+                            listen = true;
+                    }
                 }
 
                 var chn = client.getChannel(channel);
                 
-                bool listen = arguments.AllKeys.Contains("listen");
-
                 var msgListener = new MsgListener();
                 if (listen)
                 {
@@ -132,7 +137,8 @@ namespace PushDeployment
                     chn.subscribe(msgListener);
                 }
 
-                chn.publish('{' + jsonData.ToString() + '}');
+                if(jsonData.Length > 0)
+                    chn.publish('{' + jsonData.ToString() + '}');
 
                 if (listen)
                 {
