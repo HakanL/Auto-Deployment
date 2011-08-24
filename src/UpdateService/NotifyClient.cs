@@ -143,9 +143,16 @@ namespace UpdateService
 
                 string command = nvc.GetValues("command").First();
                 log.InfoFormat("Received command = {0}", command);
-                
-                if(command == "deploy")
-                    RaiseUpdateAvailable(nvc);
+
+                switch (command)
+                {
+                    case "deploy":
+                        RaiseUpdateAvailable(nvc);
+                        break;
+                    case "ping":
+                        PublishStatus("Pong");
+                        break;
+                }
             }
         }
     }
