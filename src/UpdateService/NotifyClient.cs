@@ -137,12 +137,15 @@ namespace UpdateService
                 foreach (var kvp in data)
                     nvc.Add(kvp.Key, kvp.Value.ToString());
 
-                if (nvc.GetValues("command") == null)
-                    // Missing command
+                string command = nvc["command"];
+                if (string.IsNullOrEmpty(command) || command == "status")
                     return;
 
-                string command = nvc.GetValues("command").First();
                 log.InfoFormat("Received command = {0}", command);
+
+                string computer = nvc["computer"];
+                if (!string.IsNullOrEmpty(computer) && !computer.Equals(Environment.MachineName, StringComparison.OrdinalIgnoreCase))
+                    return;
 
                 switch (command)
                 {
