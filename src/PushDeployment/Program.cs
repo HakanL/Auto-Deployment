@@ -17,7 +17,7 @@ namespace PushDeployment
     {
         private string GetString(IDictionary<string, object> data, string key)
         {
-            if(data.ContainsKey(key))
+            if (data.ContainsKey(key))
                 return data[key].ToString();
 
             return null;
@@ -26,6 +26,7 @@ namespace PushDeployment
         public void onMessage(IClientSessionChannel channel, IMessage message)
         {
             var data = message.DataAsDictionary;
+            Console.WriteLine(message.ToString());
 
             string command = GetString(data, "command");
             if (command == "status")
@@ -90,7 +91,7 @@ namespace PushDeployment
                 if (string.IsNullOrEmpty(channel))
                     throw new ArgumentException("Missing channel");
 
-                if (arguments.GetValues(string.Empty) == null ||!arguments.GetValues(string.Empty).Any())
+                if (arguments.GetValues(string.Empty) == null || !arguments.GetValues(string.Empty).Any())
                     throw new ArgumentException("Missing data (key=value)");
 
                 var transports = new List<ClientTransport>();
@@ -98,7 +99,7 @@ namespace PushDeployment
 
                 var client = new BayeuxClient(cometUrl, transports);
 
-                client.handshake(10000);
+                client.handshake();
                 client.waitFor(10000, new List<BayeuxClient.State>() { BayeuxClient.State.CONNECTED });
                 if (!client.Connected)
                 {
@@ -129,16 +130,18 @@ namespace PushDeployment
                 }
 
                 var chn = client.getChannel(channel);
-                
+
                 var msgListener = new MsgListener();
                 if (listen)
                 {
-                    chn.unsubscribe(msgListener);
                     chn.subscribe(msgListener);
                 }
 
-                if(jsonData.Length > 0)
+                if (jsonData.Length > 0)
+                {
+                    System.Threading.Thread.Sleep(500);
                     chn.publish('{' + jsonData.ToString() + '}');
+                }
 
                 if (listen)
                 {
@@ -147,6 +150,9 @@ namespace PushDeployment
 
                     chn.unsubscribe(msgListener);
                 }
+                else
+                    // Sleep for a second since there's no way to wait for the message to be delivered
+                    System.Threading.Thread.Sleep(1000);
 
                 client.disconnect();
                 client.waitFor(2000, new List<BayeuxClient.State>() { BayeuxClient.State.DISCONNECTED });
