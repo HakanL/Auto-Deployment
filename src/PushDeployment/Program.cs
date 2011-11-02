@@ -26,7 +26,7 @@ namespace PushDeployment
         public void onMessage(IClientSessionChannel channel, IMessage message)
         {
             var data = message.DataAsDictionary;
-            Console.WriteLine(message.ToString());
+//            Console.WriteLine(message.ToString());
 
             string command = GetString(data, "command");
             if (command == "status")

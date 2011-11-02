@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
-using System.Linq;
+using System.Threading;
 using System.Text;
 
 using Cometd.Client;
@@ -43,6 +43,8 @@ namespace UpdateService
         private BayeuxClient client;
         private IClientSessionChannel callEventChannel;
         private string channelId;
+        private Timer retryTimer;
+        private bool firstConnect;
 
 
         public event EventHandler<UpdateAvailableEventArgs> UpdateAvailable;
@@ -56,7 +58,11 @@ namespace UpdateService
             var transports = new List<ClientTransport>();
             transports.Add(new LongPollingTransport(null));
 
+            retryTimer = new Timer(new TimerCallback(RetryTimerCallback), null, Timeout.Infinite, Timeout.Infinite);
+
             client = new BayeuxClient(cometURL, transports);
+
+            firstConnect = true;
         }
 
         protected void RaiseUpdateAvailable(NameValueCollection nvc)
@@ -66,25 +72,42 @@ namespace UpdateService
                 handler(this, new UpdateAvailableEventArgs(nvc));
         }
 
+        private void RetryTimerCallback(object state)
+        {
+            if (!client.Handshook)
+            {
+                client.handshake();
+                var status = client.waitFor(10000, new BayeuxClient.State[] { BayeuxClient.State.CONNECTED });
+                if (status == BayeuxClient.State.CONNECTED)
+                {
+                    retryTimer.Change(Timeout.Infinite, Timeout.Infinite);
+
+                    if (callEventChannel == null)
+                    {
+                        callEventChannel = client.getChannel(channelId);
+
+                        callEventChannel.subscribe(this);
+                    }
+
+                    if (firstConnect)
+                    {
+                        firstConnect = false;
+
+                        PublishStatus("Starting up");
+                    }
+                }
+            }
+
+        }
+
         public void Connect()
         {
-            // Handshaking with oauth2
-            var handshakeAuth = new Dictionary<string, Object>();
-
-            handshakeAuth.Add("authType", "oauth2");
-//TODO            handshakeAuth.Add("oauth_token", "safasfsad");
-
-            var ext = new Dictionary<string, Object>();
-
-            ext.Add("ext", handshakeAuth);
-            client.handshake(ext);
-
-            // Subscribe and call 'Initialize' after successful login
-            client.getChannel(Channel_Fields.META_HANDSHAKE).addListener(this);
+            retryTimer.Change(0, 60000);
         }
 
         public void Disconnect()
         {
+            retryTimer.Change(Timeout.Infinite, Timeout.Infinite);
             client.disconnect();
         }
 
@@ -113,21 +136,6 @@ namespace UpdateService
 
         public void onMessage(IClientSessionChannel channel, IMessage message)
         {
-            if (channel.ChannelId.ToString().Equals(Channel_Fields.META_HANDSHAKE))
-            {
-                if (message.Successful)
-                {
-                    // Connected!
-                    callEventChannel = client.getChannel(channelId);
-
-                    callEventChannel.unsubscribe(this);
-                    callEventChannel.subscribe(this);
-
-                    PublishStatus("Starting up");
-                }
-                return;
-            }
-
             if (channel.ChannelId.ToString().Equals(channelId))
             {
                 // Our message
@@ -156,7 +164,11 @@ namespace UpdateService
                         PublishStatus("Pong");
                         break;
                 }
+
+                return;
             }
+
+            log.DebugFormat("Message on {0}   Data: {1}", message.ChannelId, message.Data);
         }
     }
 }
