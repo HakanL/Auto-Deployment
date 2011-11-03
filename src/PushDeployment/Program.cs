@@ -26,7 +26,9 @@ namespace PushDeployment
         public void onMessage(IClientSessionChannel channel, IMessage message)
         {
             var data = message.DataAsDictionary;
-//            Console.WriteLine(message.ToString());
+#if DEBUG
+            Console.WriteLine(message.ToString());
+#endif
 
             string command = GetString(data, "command");
             if (command == "status")
@@ -137,11 +139,10 @@ namespace PushDeployment
                     chn.subscribe(msgListener);
                 }
 
+                client.waitForEmptySendQueue(1000);
+
                 if (jsonData.Length > 0)
-                {
-                    System.Threading.Thread.Sleep(500);
                     chn.publish('{' + jsonData.ToString() + '}');
-                }
 
                 if (listen)
                 {
@@ -150,9 +151,8 @@ namespace PushDeployment
 
                     chn.unsubscribe(msgListener);
                 }
-                else
-                    // Sleep for a second since there's no way to wait for the message to be delivered
-                    System.Threading.Thread.Sleep(1000);
+
+                //                client.waitForEmptySendQueue(1000);
 
                 client.disconnect();
                 client.waitFor(2000, new List<BayeuxClient.State>() { BayeuxClient.State.DISCONNECTED });

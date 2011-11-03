@@ -27,6 +27,13 @@ namespace UpdateService
         {
             InitializeComponent();
 
+            SetupNotifyClient();
+
+            notifyClient.PublishStatus("Starting up");
+        }
+
+        private void SetupNotifyClient()
+        {
             notifyClient = new NotifyClient(Properties.Settings.Default.CometURL, Properties.Settings.Default.CometChannel);
 
             notifyClient.UpdateAvailable += new EventHandler<UpdateAvailableEventArgs>(notifyClient_UpdateAvailable);
@@ -111,6 +118,10 @@ namespace UpdateService
 
                     notifyClient.PublishStatus("Download complete");
 
+                    // Shut down notify client during upgrade
+                    notifyClient.Disconnect();
+                    notifyClient = null;
+
                     Process updaterProcess = new Process();
                     updaterProcess.StartInfo.WorkingDirectory = updaterPath;
                     updaterProcess.StartInfo.FileName = System.IO.Path.Combine(updaterPath, Properties.Settings.Default.UpdaterExecutable);
@@ -150,6 +161,11 @@ namespace UpdateService
                     updaterProcess.Close();
 
                     log.Info("Processing done");
+
+                    SetupNotifyClient();
+                    notifyClient.Connect();
+
+                    notifyClient.WaitForConnected(20000);
 
                     if(errors)
                         notifyClient.PublishStatus("Upgrade with errors!!!");

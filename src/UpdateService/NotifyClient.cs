@@ -43,8 +43,7 @@ namespace UpdateService
         private BayeuxClient client;
         private IClientSessionChannel callEventChannel;
         private string channelId;
-        private Timer retryTimer;
-        private bool firstConnect;
+        private bool subscribed;
 
 
         public event EventHandler<UpdateAvailableEventArgs> UpdateAvailable;
@@ -58,11 +57,12 @@ namespace UpdateService
             var transports = new List<ClientTransport>();
             transports.Add(new LongPollingTransport(null));
 
-            retryTimer = new Timer(new TimerCallback(RetryTimerCallback), null, Timeout.Infinite, Timeout.Infinite);
-
             client = new BayeuxClient(cometURL, transports);
 
-            firstConnect = true;
+            client.getChannel(Channel_Fields.META + "/**")
+                .addListener(this);
+
+            callEventChannel = client.getChannel(this.channelId);
         }
 
         protected void RaiseUpdateAvailable(NameValueCollection nvc)
@@ -72,53 +72,39 @@ namespace UpdateService
                 handler(this, new UpdateAvailableEventArgs(nvc));
         }
 
-        private void RetryTimerCallback(object state)
-        {
-            if (!client.Handshook)
-            {
-                client.handshake();
-                var status = client.waitFor(10000, new BayeuxClient.State[] { BayeuxClient.State.CONNECTED });
-                if (status == BayeuxClient.State.CONNECTED)
-                {
-                    retryTimer.Change(Timeout.Infinite, Timeout.Infinite);
-
-                    if (callEventChannel == null)
-                    {
-                        callEventChannel = client.getChannel(channelId);
-
-                        callEventChannel.subscribe(this);
-                    }
-
-                    if (firstConnect)
-                    {
-                        firstConnect = false;
-
-                        PublishStatus("Starting up");
-                    }
-                }
-            }
-
-        }
-
         public void Connect()
         {
-            retryTimer.Change(0, 60000);
+            client.handshake();
+        }
+
+        public bool WaitForConnected(int timeoutMS)
+        {
+            if (client.Connected)
+                return true;
+
+            var status = client.waitFor(timeoutMS, new BayeuxClient.State[] { BayeuxClient.State.CONNECTED });
+            if (status != BayeuxClient.State.CONNECTED)
+                return false;
+
+            return true;
         }
 
         public void Disconnect()
         {
-            retryTimer.Change(Timeout.Infinite, Timeout.Infinite);
+            client.waitForEmptySendQueue(5000);
+            callEventChannel.unsubscribe();
+
+            client.waitForEmptySendQueue(5000);
             client.disconnect();
+            client.waitFor(1000, new BayeuxClient.State[] { BayeuxClient.State.DISCONNECTED });
         }
 
 
         public void Publish(string data)
         {
-            if (callEventChannel == null)
-                // Not connected yet
-                return;
-
             callEventChannel.publish(data);
+
+            log.Debug("Sending data: " + data);
         }
 
 
@@ -136,7 +122,22 @@ namespace UpdateService
 
         public void onMessage(IClientSessionChannel channel, IMessage message)
         {
-            if (channel.ChannelId.ToString().Equals(channelId))
+            if (message.Channel.Equals(Channel_Fields.META_HANDSHAKE))
+            {
+                subscribed = false;
+            }
+
+            if (message.Channel.Equals(Channel_Fields.META_CONNECT) && message.Successful)
+            {
+                if (!subscribed)
+                {
+                    // Subscribe
+                    callEventChannel.subscribe(this);
+                    subscribed = true;
+                }
+            }
+
+            if (message.ChannelId.ToString().Equals(channelId))
             {
                 // Our message
                 var data = message.DataAsDictionary;
@@ -168,7 +169,13 @@ namespace UpdateService
                 return;
             }
 
-            log.DebugFormat("Message on {0}   Data: {1}", message.ChannelId, message.Data);
+            try
+            {
+                log.Debug("Message on " + message.ChannelId.ToString() + "   Data: " + message.ToString());
+            }
+            catch
+            {
+            }
         }
     }
 }
