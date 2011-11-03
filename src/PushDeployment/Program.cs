@@ -42,6 +42,15 @@ namespace PushDeployment
     }
 
 
+    public class MetaListener : IMessageListener
+    {
+        public void onMessage(IClientSessionChannel channel, IMessage message)
+        {
+            Console.WriteLine("META: " + message.ToString());
+        }
+    }
+
+
     public class Program
     {
         private static NameValueCollection GetArguments(string[] args)
@@ -101,6 +110,9 @@ namespace PushDeployment
 
                 var client = new BayeuxClient(cometUrl, transports);
 
+                client.getChannel(Channel_Fields.META + "/**")
+                    .addListener(new MetaListener());
+
                 client.handshake();
                 client.waitFor(10000, new List<BayeuxClient.State>() { BayeuxClient.State.CONNECTED });
                 if (!client.Connected)
@@ -142,7 +154,10 @@ namespace PushDeployment
                 client.waitForEmptySendQueue(1000);
 
                 if (jsonData.Length > 0)
+                {
                     chn.publish('{' + jsonData.ToString() + '}');
+                    Console.WriteLine("Sending data: " + jsonData.ToString());
+                }
 
                 if (listen)
                 {
@@ -152,8 +167,10 @@ namespace PushDeployment
                     chn.unsubscribe(msgListener);
                 }
 
-                //                client.waitForEmptySendQueue(1000);
+                Console.WriteLine("Waiting for queue to be sent");
+                client.waitForEmptySendQueue(1000);
 
+                Console.WriteLine("Disconnecting");
                 client.disconnect();
                 client.waitFor(2000, new List<BayeuxClient.State>() { BayeuxClient.State.DISCONNECTED });
             }
