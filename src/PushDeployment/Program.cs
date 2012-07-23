@@ -150,6 +150,19 @@ namespace PushDeployment
 
                 if (waitForCompletion != null)
                 {
+                    foreach (var server in waitForCompletion)
+                    {
+                        bool? status;
+                        computerStatus.TryGetValue(server, out status);
+
+                        if (!status.HasValue)
+                            Console.WriteLine(string.Format("{0} - no response", server));
+                        else if(status.Value)
+                            Console.WriteLine(string.Format("{0} - successful", server));
+                        else
+                            Console.WriteLine(string.Format("{1} - failure", server));
+                    }
+
                     if (!overallResult.HasValue)
                     {
                         Console.WriteLine("Time out");
