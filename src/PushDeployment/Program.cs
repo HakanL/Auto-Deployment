@@ -10,6 +10,7 @@ namespace PushDeployment
     public class Program
     {
         private static Dictionary<string, bool?> computerStatus;
+        private static DateTime lastStatus;
 
         public static void Main(string[] args)
         {
@@ -80,7 +81,7 @@ namespace PushDeployment
                 var chn = client.getChannel(channel);
 
                 var msgListener = new MsgListener();
-                msgListener.StatusReceived += new EventHandler<StatusEventArgs>(msgListener_StatusReceived);
+                msgListener.StatusReceived += new EventHandler<StatusEventArgs>(MsgListener_StatusReceived);
                 if (listen || waitForCompletion != null)
                 {
                     chn.subscribe(msgListener);
@@ -97,9 +98,9 @@ namespace PushDeployment
                 bool? overallResult = null;
                 if (waitForCompletion != null)
                 {
-                    var watch = System.Diagnostics.Stopwatch.StartNew();
+                    lastStatus = DateTime.Now;
 
-                    while (watch.Elapsed.TotalSeconds <= waitTimeoutSeconds)
+                    while ((DateTime.Now - lastStatus).TotalSeconds <= waitTimeoutSeconds)
                     {
                         // Check if all servers have reported in
                         int failed = 0;
@@ -147,14 +148,26 @@ namespace PushDeployment
                 client.disconnect();
                 client.waitFor(2000, new List<BayeuxClient.State>() { BayeuxClient.State.DISCONNECTED });
 
-                if (!overallResult.HasValue)
-                    Environment.Exit(1);
-                else
+                if (waitForCompletion != null)
                 {
-                    if (overallResult.Value)
-                        Environment.Exit(0);
+                    if (!overallResult.HasValue)
+                    {
+                        Console.WriteLine("Time out");
+                        Environment.Exit(1);
+                    }
                     else
-                        Environment.Exit(200);
+                    {
+                        if (overallResult.Value)
+                        {
+                            Console.WriteLine("Successful!");
+                            Environment.Exit(0);
+                        }
+                        else
+                        {
+                            Console.WriteLine("Failure");
+                            Environment.Exit(200);
+                        }
+                    }
                 }
             }
             catch (Exception ex)
@@ -164,8 +177,10 @@ namespace PushDeployment
             }
         }
 
-        private static void msgListener_StatusReceived(object sender, StatusEventArgs e)
+        private static void MsgListener_StatusReceived(object sender, StatusEventArgs e)
         {
+            lastStatus = DateTime.Now;
+
             switch (e.Status)
             {
                 case Status.Successful:
@@ -175,7 +190,7 @@ namespace PushDeployment
                     computerStatus[e.Computer] = false;
                     break;
                 default:
-                    if(!computerStatus.ContainsKey(e.Computer))
+                    if (!computerStatus.ContainsKey(e.Computer))
                         computerStatus[e.Computer] = null;
                     break;
             }

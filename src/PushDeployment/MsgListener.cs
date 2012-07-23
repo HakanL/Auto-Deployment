@@ -35,7 +35,7 @@ namespace PushDeployment
                     else
                         status = Status.Information;
 
-                    var handler = StatusReceived;
+                    var handler = this.StatusReceived;
                     if (handler != null)
                         handler(this, new StatusEventArgs(computer, status, statusMessage));
                     break;

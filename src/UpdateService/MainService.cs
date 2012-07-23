@@ -135,10 +135,15 @@ namespace UpdateService
                     log.Info("Starting update process");
                     log.DebugFormat("Launch: {0} {1}", updaterProcess.StartInfo.FileName, updaterProcess.StartInfo.Arguments);
 
+                    var logLines = new List<string>();
+
                     updaterProcess.OutputDataReceived += (recv_sender, recv_e) =>
                     {
                         if (!string.IsNullOrEmpty(recv_e.Data))
+                        {
                             log.Info(recv_e.Data);
+                            logLines.Add("#" + recv_e.Data);
+                        }
                     };
 
                     bool errors = false;
@@ -148,6 +153,7 @@ namespace UpdateService
                         {
                             log.Error(recv_e.Data);
                             errors = true;
+                            logLines.Add("*" + recv_e.Data);
                         }
                     };
 
@@ -167,14 +173,20 @@ namespace UpdateService
 
                     notifyClient.WaitForConnected(20000);
 
+                    // Send last 10 log messages
+                    foreach (var logLine in logLines.Skip(logLines.Count - 10))
+                        notifyClient.PublishStatus(logLine);
+
+                    notifyClient.WaitForEmptyQueue();
+
                     if(errors)
-                        notifyClient.PublishStatus("Upgrade with errors!!!");
+                        notifyClient.PublishStatus("Upgrade with errors!!!", false);
                     else
-                        notifyClient.PublishStatus("Upgrade done!");
+                        notifyClient.PublishStatus("Upgrade done!", true);
                 }
                 catch(Exception ex)
                 {
-                    notifyClient.PublishStatus("Exception: " + ex.Message);
+                    notifyClient.PublishStatus("Exception: " + ex.Message, false);
                 }
             }
         }

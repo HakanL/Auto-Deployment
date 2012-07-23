@@ -108,13 +108,19 @@ namespace UpdateService
         }
 
 
-        public void PublishStatus(string status)
+        public void PublishStatus(string message, bool? successful = null)
         {
             StringBuilder sb = new StringBuilder();
 
-            sb.Append("\"command\":\"status\",");
+            if (!successful.HasValue)
+                sb.Append("\"command\":\"status\",");
+            else if(successful.Value)
+                sb.Append("\"command\":\"statusOK\",");
+            else
+                sb.Append("\"command\":\"statusFAIL\",");
+
             sb.AppendFormat("\"computer\":\"{0}\",", Environment.MachineName);
-            sb.AppendFormat("\"status\":\"{0}\"", status);
+            sb.AppendFormat("\"status\":\"{0}\"", message);
 
             Publish('{' + sb.ToString() + '}');
         }
@@ -176,6 +182,11 @@ namespace UpdateService
             catch
             {
             }
+        }
+
+        public void WaitForEmptyQueue(int timeoutMS = 1000)
+        {
+            client.waitForEmptySendQueue(timeoutMS);
         }
     }
 }
