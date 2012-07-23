@@ -1,109 +1,30 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.Specialized;
-using System.Linq;
 using System.Text;
-
+using Cometd.Bayeux;
 using Cometd.Client;
 using Cometd.Client.Transport;
-using Cometd.Bayeux;
-using Cometd.Bayeux.Client;
-using Cometd.Common;
-
 
 namespace PushDeployment
 {
-    public class MsgListener : IMessageListener
-    {
-        private string GetString(IDictionary<string, object> data, string key)
-        {
-            if (data.ContainsKey(key))
-                return data[key].ToString();
-
-            return null;
-        }
-
-        public void onMessage(IClientSessionChannel channel, IMessage message)
-        {
-            var data = message.DataAsDictionary;
-#if DEBUG
-            Console.WriteLine(message.ToString());
-#endif
-
-            string command = GetString(data, "command");
-            if (command == "status")
-            {
-                string computer = GetString(data, "computer");
-                string status = GetString(data, "status");
-
-                Console.WriteLine(string.Format("{0} - {1}", computer, status));
-            }
-        }
-    }
-
-
-    public class MetaListener : IMessageListener
-    {
-        public void onMessage(IClientSessionChannel channel, IMessage message)
-        {
-            Console.WriteLine("META: " + message.ToString());
-        }
-    }
-
-
     public class Program
     {
-        private static NameValueCollection GetArguments(string[] args)
-        {
-            var arguments = new NameValueCollection();
-
-            string key = string.Empty;
-            foreach (var arg in args)
-            {
-                if (arg.StartsWith("-"))
-                {
-                    if (!string.IsNullOrEmpty(key))
-                        arguments.Add(key.ToLower(), null);
-
-                    key = arg.Substring(1);
-                }
-                else
-                {
-                    arguments.Add(key.ToLower(), arg);
-
-                    key = string.Empty;
-                }
-            }
-
-            if (!string.IsNullOrEmpty(key))
-                arguments.Add(key.ToLower(), null);
-
-            return arguments;
-        }
-
+        private static Dictionary<string, bool?> computerStatus;
 
         public static void Main(string[] args)
         {
             try
             {
-                var arguments = GetArguments(args);
+                var arguments = new CommandLine.Utility.Arguments(args, true);
 
-                var cometUrl = "http://comet.apphb.com/comet.axd";      // Default
-                if (arguments.GetValues("cometurl").Any())
-                    cometUrl = arguments.GetValues("cometurl")[0];
+                string cometUrl = arguments.GetValueOrDefault("cometurl", "http://comet.apphb.com/comet.axd");
 
-                var channel = string.Empty;
-                if (arguments.GetValues("channel").Any())
-                    channel = arguments.GetValues("channel")[0];
-
+                string channel = arguments.GetValueOrDefault("channel");
                 if (!channel.StartsWith("/"))
                     channel = "/" + channel;
 
                 if (string.IsNullOrEmpty(channel))
                     throw new ArgumentException("Missing channel");
-
-                if (arguments.GetValues(string.Empty) == null || !arguments.GetValues(string.Empty).Any())
-                    throw new ArgumentException("Missing data (key=value)");
 
                 var transports = new List<ClientTransport>();
                 transports.Add(new LongPollingTransport(null));
@@ -120,33 +41,47 @@ namespace PushDeployment
                     throw new InvalidOperationException("Failed to connect to comet server");
                 }
 
+                computerStatus = new Dictionary<string, bool?>(StringComparer.OrdinalIgnoreCase);
+
                 bool listen = false;
+                HashSet<string> waitForCompletion = null;
+                int waitTimeoutSeconds = 30;
 
                 StringBuilder jsonData = new StringBuilder();
-                foreach (var arg in arguments.GetValues(string.Empty))
+                foreach (var kvp in arguments)
                 {
-                    var kvp = arg.Split('=');
-                    if (kvp.Length > 1)
+                    switch (kvp.Key)
                     {
-                        var key = kvp[0];
-                        var value = string.Join("=", kvp, 1, kvp.Length - 1);
+                        case "channel":
+                        case "cometurl":
+                            // Ignore
+                            break;
 
-                        Console.WriteLine(string.Format("Sending notify for data: {0}={1}", key, value));
-                        if (jsonData.Length > 0)
-                            jsonData.Append(',');
-                        jsonData.AppendFormat("\"{0}\":\"{1}\"", key, value);
-                    }
-                    else
-                    {
-                        if (arg.Equals("listen", StringComparison.OrdinalIgnoreCase))
+                        case "listen":
                             listen = true;
+                            break;
+                        case "wait":
+                            waitForCompletion = new HashSet<string>();
+                            foreach (var server in kvp.Value.Split(','))
+                                waitForCompletion.Add(server.Trim());
+                            break;
+                        case "waitsec":
+                            waitTimeoutSeconds = int.Parse(kvp.Value);
+                            break;
+                        default:
+                            Console.WriteLine(string.Format("Sending notify for data: {0}={1}", kvp.Key, kvp.Value));
+                            if (jsonData.Length > 0)
+                                jsonData.Append(',');
+                            jsonData.AppendFormat("\"{0}\":\"{1}\"", kvp.Key, kvp.Value);
+                            break;
                     }
                 }
 
                 var chn = client.getChannel(channel);
 
                 var msgListener = new MsgListener();
-                if (listen)
+                msgListener.StatusReceived += new EventHandler<StatusEventArgs>(msgListener_StatusReceived);
+                if (listen || waitForCompletion != null)
                 {
                     chn.subscribe(msgListener);
                 }
@@ -157,6 +92,44 @@ namespace PushDeployment
                 {
                     chn.publish('{' + jsonData.ToString() + '}');
                     Console.WriteLine("Sending data: " + jsonData.ToString());
+                }
+
+                bool? overallResult = null;
+                if (waitForCompletion != null)
+                {
+                    var watch = System.Diagnostics.Stopwatch.StartNew();
+
+                    while (watch.Elapsed.TotalSeconds <= waitTimeoutSeconds)
+                    {
+                        // Check if all servers have reported in
+                        int failed = 0;
+                        int succeeded = 0;
+                        foreach (var server in waitForCompletion)
+                        {
+                            bool? status;
+                            if (computerStatus.TryGetValue(server, out status))
+                            {
+                                if (status.HasValue)
+                                {
+                                    if (status.Value)
+                                        succeeded++;
+                                    else
+                                        failed++;
+                                }
+                            }
+                        }
+
+                        if (failed + succeeded == waitForCompletion.Count)
+                        {
+                            // Done
+                            overallResult = failed == 0;
+                            break;
+                        }
+
+                        System.Threading.Thread.Sleep(100);
+                    }
+
+                    chn.unsubscribe(msgListener);
                 }
 
                 if (listen)
@@ -173,11 +146,38 @@ namespace PushDeployment
                 Console.WriteLine("Disconnecting");
                 client.disconnect();
                 client.waitFor(2000, new List<BayeuxClient.State>() { BayeuxClient.State.DISCONNECTED });
+
+                if (!overallResult.HasValue)
+                    Environment.Exit(1);
+                else
+                {
+                    if (overallResult.Value)
+                        Environment.Exit(0);
+                    else
+                        Environment.Exit(200);
+                }
             }
             catch (Exception ex)
             {
                 Console.WriteLine("Error: " + ex.Message);
                 Environment.Exit(255);
+            }
+        }
+
+        private static void msgListener_StatusReceived(object sender, StatusEventArgs e)
+        {
+            switch (e.Status)
+            {
+                case Status.Successful:
+                    computerStatus[e.Computer] = true;
+                    break;
+                case Status.Failure:
+                    computerStatus[e.Computer] = false;
+                    break;
+                default:
+                    if(!computerStatus.ContainsKey(e.Computer))
+                        computerStatus[e.Computer] = null;
+                    break;
             }
         }
     }
