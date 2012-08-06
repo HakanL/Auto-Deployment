@@ -160,7 +160,7 @@ namespace PushDeployment
                         else if(status.Value)
                             Console.WriteLine(string.Format("{0} - successful", server));
                         else
-                            Console.WriteLine(string.Format("{1} - failure", server));
+                            Console.WriteLine(string.Format("{0} - failure", server));
                     }
 
                     if (!overallResult.HasValue)
@@ -185,7 +185,7 @@ namespace PushDeployment
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Error: " + ex.Message);
+                Console.WriteLine("Error: " + ex.ToString());
                 Environment.Exit(255);
             }
         }
