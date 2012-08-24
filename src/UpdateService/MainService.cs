@@ -83,9 +83,19 @@ namespace UpdateService
                     else
                         downloadPath = System.IO.Path.Combine(updaterPath, Properties.Settings.Default.DownloadFolder);
 
+                    try
+                    {
+                        // Empty download folder
+                        System.IO.Directory.Delete(downloadPath, true);
+                    }
+                    catch
+                    {
+                    }
+
                     if (!System.IO.Directory.Exists(downloadPath))
                         System.IO.Directory.CreateDirectory(downloadPath);
 
+                    var destFiles = new List<string>();
                     // Download everything
                     var webClient = new System.Net.WebClient();
                     foreach (var downloadItem in Properties.Settings.Default.Downloads)
@@ -114,9 +124,35 @@ namespace UpdateService
                         log.InfoFormat("Downloading from {0}", downloadUrl);
 
                         webClient.DownloadFile(downloadUrl, destFile);
+                        destFiles.Add(destFile);
                     }
 
                     notifyClient.PublishStatus("Download complete");
+
+                    if (Properties.Settings.Default.ExtractDownloadedZip)
+                    {
+                        foreach (var destFile in destFiles)
+                        {
+                            if (System.IO.Path.GetExtension(destFile).Equals(".zip", StringComparison.OrdinalIgnoreCase))
+                            {
+                                notifyClient.PublishStatus("Extracting " + System.IO.Path.GetFileName(destFile));
+
+                                using (var zipFile = Ionic.Zip.ZipFile.Read(destFile))
+                                {
+                                    zipFile.ExtractAll(System.IO.Path.GetDirectoryName(destFile), Ionic.Zip.ExtractExistingFileAction.OverwriteSilently);
+                                }
+
+                                // Delete the file
+                                try
+                                {
+                                    System.IO.File.Delete(destFile);
+                                }
+                                catch
+                                {
+                                }
+                            }
+                        }
+                    }
 
                     // Shut down notify client during upgrade
                     notifyClient.Disconnect();

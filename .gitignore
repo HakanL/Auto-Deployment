@@ -4,3 +4,5 @@
 /src/UpdateService/obj
 /src/UpdateService/bin
 /src\PushDeployment/*.Cache
+/src/PushDeployment/*.Cache
+/src/UpdateService/packages
