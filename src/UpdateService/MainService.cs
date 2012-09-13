@@ -199,6 +199,8 @@ namespace UpdateService
                     updaterProcess.BeginErrorReadLine();
 
                     updaterProcess.WaitForExit();
+                    if (updaterProcess.ExitCode != 0)
+                        errors = true;
 
                     updaterProcess.Close();
 
