@@ -15,10 +15,10 @@
       <Value Profile="(Default)">download</Value>
     </Setting>
     <Setting Name="UpdaterExecutable" Type="System.String" Scope="Application">
-      <Value Profile="(Default)">bin\ir.exe</Value>
+      <Value Profile="(Default)" />
     </Setting>
     <Setting Name="UpdaterParameters" Type="System.String" Scope="Application">
-      <Value Profile="(Default)">bin\rake -f download\openbook2-dev.rb build={build} clean</Value>
+      <Value Profile="(Default)" />
     </Setting>
     <Setting Name="Downloads" Type="System.Collections.Specialized.StringCollection" Scope="Application">
       <Value Profile="(Default)">&lt;?xml version="1.0" encoding="utf-16"?&gt;
@@ -32,6 +32,15 @@
     </Setting>
     <Setting Name="ExtractDownloadedZip" Type="System.Boolean" Scope="Application">
       <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="Updaters" Type="System.Collections.Generic.List&lt;UpdaterConfig&gt;" Scope="Application">
+      <Value Profile="(Default)">&lt;?xml version="1.0" encoding="utf-16"?&gt;
+&lt;ArrayOfUpdaterConfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"&gt;
+  &lt;UpdaterConfig&gt;
+    &lt;Executable&gt;bin\ir.exe&lt;/Executable&gt;
+    &lt;Parameters&gt;bin\rake -f download\openbook2-dev.rb build={build} clean&lt;/Parameters&gt;
+  &lt;/UpdaterConfig&gt;
+&lt;/ArrayOfUpdaterConfig&gt;</Value>
     </Setting>
   </Settings>
 </SettingsFile>

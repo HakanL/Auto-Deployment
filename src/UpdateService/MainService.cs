@@ -158,51 +158,66 @@ namespace UpdateService
                     notifyClient.Disconnect();
                     notifyClient = null;
 
-                    Process updaterProcess = new Process();
-                    updaterProcess.StartInfo.WorkingDirectory = updaterPath;
-                    updaterProcess.StartInfo.FileName = System.IO.Path.Combine(updaterPath, Properties.Settings.Default.UpdaterExecutable);
-
-                    updaterProcess.StartInfo.Arguments = ReplaceProperties(Properties.Settings.Default.UpdaterParameters, e.Properties);
-
-                    updaterProcess.StartInfo.UseShellExecute = false;
-                    updaterProcess.StartInfo.RedirectStandardOutput = true;
-                    updaterProcess.StartInfo.RedirectStandardError = true;
-
-                    log.Info("Starting update process");
-                    log.DebugFormat("Launch: {0} {1}", updaterProcess.StartInfo.FileName, updaterProcess.StartInfo.Arguments);
+                    var updaters = Properties.Settings.Default.Updaters;
+                    if (updaters == null)
+                        updaters = new List<UpdaterConfig>();
+                    if (!string.IsNullOrEmpty(Properties.Settings.Default.UpdaterExecutable))
+                    {
+                        updaters.Add(new UpdaterConfig
+                        {
+                            Executable = Properties.Settings.Default.UpdaterExecutable,
+                            Parameters = Properties.Settings.Default.UpdaterParameters
+                        });
+                    }
 
                     var logLines = new List<string>();
-
-                    updaterProcess.OutputDataReceived += (recv_sender, recv_e) =>
-                    {
-                        if (!string.IsNullOrEmpty(recv_e.Data))
-                        {
-                            log.Info(recv_e.Data);
-                            logLines.Add("#" + recv_e.Data);
-                        }
-                    };
-
                     bool errors = false;
-                    updaterProcess.ErrorDataReceived += (recv_sender, recv_e) =>
+                    foreach (var updater in updaters)
                     {
-                        if (!string.IsNullOrEmpty(recv_e.Data))
+                        Process updaterProcess = new Process();
+                        updaterProcess.StartInfo.WorkingDirectory = updaterPath;
+                        updaterProcess.StartInfo.FileName = System.IO.Path.Combine(updaterPath, updater.Executable);
+
+                        updaterProcess.StartInfo.Arguments = ReplaceProperties(updater.Parameters, e.Properties);
+
+                        updaterProcess.StartInfo.UseShellExecute = false;
+                        updaterProcess.StartInfo.RedirectStandardOutput = true;
+                        updaterProcess.StartInfo.RedirectStandardError = true;
+
+                        log.Info("Starting update process");
+                        log.DebugFormat("Launch: {0} {1}", updaterProcess.StartInfo.FileName, updaterProcess.StartInfo.Arguments);
+
+
+                        updaterProcess.OutputDataReceived += (recv_sender, recv_e) =>
                         {
-                            log.Error(recv_e.Data);
+                            if (!string.IsNullOrEmpty(recv_e.Data))
+                            {
+                                log.Info(recv_e.Data);
+                                logLines.Add("#" + recv_e.Data);
+                            }
+                        };
+
+                        updaterProcess.ErrorDataReceived += (recv_sender, recv_e) =>
+                        {
+                            if (!string.IsNullOrEmpty(recv_e.Data))
+                            {
+                                log.Error(recv_e.Data);
+                                errors = true;
+                                logLines.Add("*" + recv_e.Data);
+                            }
+                        };
+
+                        updaterProcess.Start();
+
+                        updaterProcess.BeginOutputReadLine();
+                        updaterProcess.BeginErrorReadLine();
+
+                        updaterProcess.WaitForExit();
+                        if (updaterProcess.ExitCode != 0)
                             errors = true;
-                            logLines.Add("*" + recv_e.Data);
-                        }
-                    };
 
-                    updaterProcess.Start();
-
-                    updaterProcess.BeginOutputReadLine();
-                    updaterProcess.BeginErrorReadLine();
-
-                    updaterProcess.WaitForExit();
-                    if (updaterProcess.ExitCode != 0)
-                        errors = true;
-
-                    updaterProcess.Close();
+                        updaterProcess.Close();
+                    }
 
                     log.Info("Processing done");
 
@@ -217,12 +232,12 @@ namespace UpdateService
 
                     notifyClient.WaitForEmptyQueue();
 
-                    if(errors)
+                    if (errors)
                         notifyClient.PublishStatus("Upgrade with errors!!!", false);
                     else
                         notifyClient.PublishStatus("Upgrade done!", true);
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
                     notifyClient.PublishStatus("Exception: " + ex.Message, false);
                 }
