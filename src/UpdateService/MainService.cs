@@ -100,7 +100,7 @@ namespace UpdateService
                     var webClient = new System.Net.WebClient();
                     foreach (var downloadItem in Properties.Settings.Default.Downloads)
                     {
-                        string downloadUrl = downloadItem.Trim();
+                        string downloadUrl = downloadItem.Replace("/r", "").Replace("/n", "").Trim();
 
                         if (!downloadUrl.Contains("/") || !downloadUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
                             continue;
