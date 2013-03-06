@@ -120,7 +120,7 @@ namespace UpdateService
                 sb.Append("\"command\":\"statusFAIL\",");
 
             sb.AppendFormat("\"computer\":\"{0}\",", Environment.MachineName);
-            sb.AppendFormat("\"status\":\"{0}\"", message);
+            sb.AppendFormat("\"status\":\"{0}\"", message.Replace(@"\", @"\\"));
 
             Publish('{' + sb.ToString() + '}');
         }
