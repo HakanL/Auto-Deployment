@@ -219,6 +219,10 @@ namespace UpdateService
                             errors = true;
 
                         updaterProcess.Close();
+
+                        if (errors)
+                            // Stop execution of upgrades if errors detected
+                            break;
                     }
 
                     log.Info("Processing done");
